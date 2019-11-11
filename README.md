@@ -19,6 +19,11 @@ Aditionally it will **try** to "*fix*" ass-subtitles*, note that if there are no
 
 Default output folder is `_output`.
 
+The script requires Python 3.8 and `mkvmerge`, `mkvextract`, `ffmpeg` to be in $PATH/%PATH%
+
+Only tested on Windows.
+
+---
 
 \* The way it "*fixes*" those is by taking all the styles from each segment and appending a suffix, like `partid_1`
 this ensures that the style from, say segment2 will not be overidden by segment1 so all styles can coexist.
