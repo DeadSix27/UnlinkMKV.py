@@ -21,4 +21,4 @@ This may add additional garbage but it's just a few bytes so who cares, better t
 If there are no subtitles it probably just crashes.
 
 
-Note this program is just a private tool I paid almost no attention to clean code or bugs.
+Note this program is just a private tool I paid almost no attention to clean code or bugs theres also a ton of leftover debug print's and commented code.
