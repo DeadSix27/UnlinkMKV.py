@@ -1,7 +1,7 @@
 # UnlinkMKV.py
 
 
-Very crude script to merge linked mkv segment back into a single file,
+Very crude script to merge linked mkv segments back into a single file,
 the only reason I made this is because UnlinkMKV didn't work on some files.
 
 There's no doc, no help and no guarantees.
@@ -12,9 +12,9 @@ It will link and merge all segmented files in the source folder into the output 
 
 Default output folder is `_output`.
 
-Aditionally it will *try* to *fix* ass-subtitles.
+Aditionally it will **try** to "*fix*" ass-subtitles.
 
-The way it fixes those is by taking all the styles from each segment and appending a suffix, like `partid_1`
+The way it "*fixes*" those is by taking all the styles from each segment and appending a suffix, like `partid_1`
 this ensures that the style from, say segment2 will not be overidden by segment1 so all styles can coexist.
 This may add additional garbage but it's just a few bytes so who cares, better than hoping that all segments have the same styles.
 
