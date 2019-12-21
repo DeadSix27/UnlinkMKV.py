@@ -7,8 +7,6 @@ from lib.common import common
 from lib.mkvstuff import mkvstuff
 from lib.pathlibex import Path
 
-pp = lambda s: pprint(s, indent=4)
-
 '''
 MKVUnlink in Python because MKVUnlink did not work on this shitty coalgirls release. Stupid linked segments.
 Very crude, may or may not work, no guarantees, good luck.
@@ -44,8 +42,6 @@ class PyMergeMKVLinks():
 					new_chapter = self.tmpDir.joinpath(str(i)).joinpath("new_chapter.xml")
 					with new_chapter.open('w', encoding='utf-8') as f:
 						 f.write(mkvstuff.segmentListToChapterFile(segmentList))
-
-					# mkvstuff.segmentFreeChapter(sourceFile, self.tmpDir.joinpath(str(i)))
 					self.buildMkvFromSegments(segmentList, self.outputFolder.joinpath(sourceFile.name), self.tmpDir.joinpath(str(i)), chapter=new_chapter)
 
 	def plainCopy(self, sourceFile: Path, destinationFile: Path):
@@ -78,7 +74,7 @@ class PyMergeMKVLinks():
 			if 'file_path' not in seg:
 				continue
 			_fixed_sub = mkvstuff.extract_first_subtitle(seg["file_path"], tmpDir)
-			_fixed_sub = mkvstuff.suffixStyleNaming(_fixed_sub, F"partid_{i}") # silly double up, but too lazy to save in memory 
+			_fixed_sub = mkvstuff.suffixStyleNaming(_fixed_sub, F"partid_{i}")  # silly double up, but too lazy to save in memory
 			_fixed_sub = mkvstuff.replaceAssStylesWithList(_fixed_sub, style_list)
 			_fixed_sub_mkv = mkvstuff.replaceSubFileWith(seg["file_path"], _fixed_sub, tmpDir)
 			segmentList[i]["file_path"] = _fixed_sub_mkv
@@ -149,69 +145,9 @@ class PyMergeMKVLinks():
 		output_file.move(output_file.append_stem(F' [{csum}]'))
 		print(F"\rCalculating and appending CRC-Sum, OK: {csum}")
 
-		# cmd = [
-		# 	"mkvmerge",
-		# 	"--ui-language",
-		# 	"en",
-		# 	"--output",
-		# 	F"{output_file}",
-		# ]
-
-		# for i in sorted(segmentList.keys()):
-		# 	seg = segmentList[i]
-		# 	cmd.extend([
-		# 		"(",
-		# 		F"{seg['file_path']}",
-		# 		")",
-		# 		"+"
-		# 	])
-		# del cmd[-1]
-
-		# cmd.extend([
-		# 	"--track-order",
-		# 	"0:0,0:1,0:2",
-		# 	"--append-to",
-		# 	"1:0:0:0,2:0:1:0,3:0:2:0,4:0:3:0,1:1:0:1,2:1:1:1,3:1:2:1,4:1:3:1,1:2:0:2,2:2:1:2,3:2:2:2,4:2:3:2"
-		# ])
-
-		# [
-		# 	"--ui-language",
-		# 	"en",
-		# 	"--output",
-		# 	"K:\\unlink_mkv_py\\_unlink_temp\\0\\Tokyo Ghoul 02 Incubation.mkv",
-		# 	"(",
-		# 	"K:\\unlink_mkv_py\\_unlink_temp\\0\\parts-001.mkv",
-		# 	")",
-		# 	"+",
-		# 	"(",
-		# 	"K:\\unlink_mkv_py\\videos\\[Coalgirls]_Tokyo_Ghoul_NCOP1_(1920x1080_Blu-ray_FLAC)_[D91E552D].mkv",
-		# 	")",
-		# 	"+",
-		# 	"(",
-		# 	"K:\\unlink_mkv_py\\_unlink_temp\\0\\parts-002.mkv",
-		# 	")",
-		# 	"+",
-		# 	"(",
-		# 	"K:\\unlink_mkv_py\\videos\\[Coalgirls]_Tokyo_Ghoul_NCED1a_(1920x1080_Blu-ray_FLAC)_[23319A8D].mkv",
-		# 	")",
-		# 	"+",
-		# 	"(",
-		# 	"K:\\unlink_mkv_py\\_unlink_temp\\0\\parts-003.mkv",
-		# 	")",
-		# 	"--track-order",
-		# 	"0:0,0:1,0:2",
-		# 	"--append-to",
-		# 	"1:0:0:0,2:0:1:0,3:0:2:0,4:0:3:0,1:1:0:1,2:1:1:1,3:1:2:1,4:1:3:1,1:2:0:2,2:2:1:2,3:2:2:2,4:2:3:2"
-		# ]
-	#:
-
 	def buildSegmentList(self, input_file: Path, segmentList: dict, outputDirectory: Path = None, fullOutputDirectory: Path = None):
 		if not outputDirectory and not fullOutputDirectory:
 			raise Exception("mergeSegmentsIntoFile requires either outputDirectory or fullOutputDirectory to be set")
-
-		# split_times = []
-		# for i, seg in segmentList.items():
-			# if seg["segment_uid"] is None and (segmentList[i + 1]["segment_uid"] if (i + 1) < len(segmentList) else True):
 
 		split_times = []
 		for i in sorted(segmentList.keys()):
@@ -219,19 +155,16 @@ class PyMergeMKVLinks():
 			if seg["segment_uid"] is None and (segmentList[i + 1]["segment_uid"] if (i + 1) < len(segmentList) else True):
 				if "time_end" not in seg:
 					if i + 1 in segmentList:
-						split_times.append((i, segmentList[i+1]["time_start"]))
-					elif i - 1 in segmentList and 'time_end' in segmentList[i-1]:
-						split_times.append((i, segmentList[i-1]["time_end"]))
+						split_times.append((i, segmentList[i + 1]["time_start"]))
+					elif i - 1 in segmentList and 'time_end' in segmentList[i - 1]:
+						split_times.append((i, segmentList[i - 1]["time_end"]))
 				else:
-					#split_times.append(seg["time_start"])
 					split_times.append((i, seg["time_end"]))
 			else:
 				if seg["segment_uid"] in self.sourceFiles:
 					segmentList[i]["file_path"] = self.sourceFiles[seg["segment_uid"]]
 
-		# split_times = [(i, seg["time_end"]) for (i, seg) in segmentList.items() if seg["segment_uid"] is None and (segmentList[i + 1]["segment_uid"] if (i + 1) < len(segmentList) else True)]
-
-		output_file: Path = None 
+		output_file: Path = None
 		if fullOutputDirectory:
 			output_file = fullOutputDirectory
 		else:
@@ -245,24 +178,15 @@ class PyMergeMKVLinks():
 			if i in split_files:
 				segmentList[i]["file_path"] = split_files[i]
 
-		# pp(segmentList)
 		return segmentList
-	#:
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="")
 
 	parser.set_defaults(which="main_p")
-	# parser.add_argument("-e", "--specific-episodes", action="store", dest="workOnSpecificEpisodes", default=None)
-	# parser.add_argument("-nc", "--no-checksums", action="store_true", dest="noCheckSums", default=None)
-	# parser.add_argument("-wc", "--with-checksums", action="store_true", dest="withCheckSums", default=None)
-
 	parser.add_argument("sourceDir", nargs="+", type=common.folderArgument)
 	parser.add_argument("destDir", nargs="*", type=common.folderArgument, default=(Path("./_output/"), ))
-	# parser.add_argument("sourceDir", type=common.folderArgument, nargs="?", required=False)
-	# parser.add_argument("destDir", type=common.folderArgument, nargs="?", default=Path("_MERGED"), required=False)
-
-
 	args = parser.parse_args()
 	try:
 		PyMergeMKVLinks(args)
