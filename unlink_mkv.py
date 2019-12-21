@@ -20,6 +20,9 @@ class PyMergeMKVLinks():
 		self.outputFolder: Path = args.destDir[0]
 		self.outputFolder.mkdir(exist_ok=True)
 		self.sourceFiles = self.generateFileList()
+		if not len(self.sourceFiles):
+			print(F"Found no files with segments in: {self.sourceFolder}")
+			exit(1)
 		self.tmpDir = Path("_unlink_temp/")
 		self.tmpDir.mkdir(exist_ok=True)
 		self.processFiles()
@@ -28,7 +31,8 @@ class PyMergeMKVLinks():
 		segs = {}
 		for f in self.sourceFolder.listfiles():
 			js = mkvstuff.mkvJson(f)
-			segs[js["container"]["properties"]["segment_uid"]] = f
+			if "properties" in segs[js["container"]]:
+				segs[js["container"]["properties"]["segment_uid"]] = f
 		return segs
 
 	def processFiles(self):
