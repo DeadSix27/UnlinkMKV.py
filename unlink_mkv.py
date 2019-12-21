@@ -30,7 +30,7 @@ class PyMergeMKVLinks():
 		segs = {}
 		for f in self.sourceFolder.listfiles():
 			js = mkvstuff.mkvJson(f)
-			if "properties" in segs[js["container"]]:
+			if "properties" in js["container"]:
 				segs[js["container"]["properties"]["segment_uid"]] = f
 		return segs
 
