@@ -16,7 +16,6 @@ Very crude, may or may not work, no guarantees, good luck.
 class PyMergeMKVLinks():
 	def __init__(self, args):
 		self.sourceFolder: Path = args.sourceDir[0]
-		self.sourceFolder.mkdir(exist_ok=True)
 		self.outputFolder: Path = args.destDir[0]
 		self.outputFolder.mkdir(exist_ok=True)
 		self.sourceFiles = self.generateFileList()
