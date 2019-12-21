@@ -139,6 +139,7 @@ class mkvstuff:
 					new_file.append(newLine)
 				elif "Dialogue:" in line or "Comment:" in line:
 					print("Failed to rx parse: \n " + line)
+					print("The subfile is probably fucked, lack of proper QA in fansubs..")
 					exit(1)
 				else:
 					new_file.append(line)
@@ -193,8 +194,6 @@ class mkvstuff:
 			F'{input_file}',
 			'-vn',
 			'-an',
-			'-c:s',
-			'copy',
 			F'{output}'
 		]
 
@@ -229,6 +228,30 @@ class mkvstuff:
 		return output_folder
 
 	@staticmethod
+	def reEncodeFile(file: Path, outputFolder):
+		cmd = [ "ffmpeg", "-y" ]
+		cmd.append("-i")
+		cmd.append(F"{file}")
+		cmd.append('-map')
+		cmd.append('0')
+		cmd.append('-g')
+		cmd.append('1')
+		cmd.append('-pix_fmt')
+		cmd.append('yuv420p')
+		cmd.append('-c:v')
+		cmd.append('h264_nvenc')
+		cmd.append('-c:a')
+		cmd.append('pcm_s16le')
+		cmd.append('-b:v')
+		cmd.append('2M')
+		cmd.append('-s')
+		cmd.append('1280x720')
+		_output_file = outputFolder.joinpath(F"{file.stem}_re_encoded{file.suffix}")
+		cmd.append(_output_file)
+		common.run_process(cmd, silent=True)
+		return _output_file
+
+	@staticmethod
 	def segmentListToChapterFile(segmentList: dict):
 		
 		randUid = lambda: "".join(str(random.randint(5, 9)) for x in range(0, 20))
@@ -254,8 +277,6 @@ class mkvstuff:
 				startTime = F'\t\t\t<ChapterTimeStart>{common.tdToMkvTime(current_time)}</ChapterTimeStart>\n'
 				current_time += (common.parseAssTime(seg["time_end"]) - common.parseAssTime(seg["time_start"]))
 				endTime = F'\t\t\t<ChapterTimeEnd>{common.tdToMkvTime(current_time)}</ChapterTimeEnd>\n'
-
-			print(seg)
 
 			# if seg["segment_uid"]:
 			# 	startTime = seg["previous_end"]
@@ -318,34 +339,94 @@ class mkvstuff:
 		return full_output_path
 
 	@staticmethod
-	def splitFilesByTimeCodes(input_file: Path, split_times: list, output_file: Path) -> List[Path]:
+	def splitFilesByTimeCodes(input_file: Path, split_times: list, output_file: Path, viaFfmpeg=True, reEncode=False) -> List[Path]:
 		print([x for x in split_times])
 
-		ids = [x[0] for x in split_times]
-		timeCodes = ",".join(x[1] for x in split_times)
-		# print(timeCodes)
-		cmd = [
-			"mkvmerge",
-			"--ui-language",
-			"en",
-			"--output",
-			F"{output_file}",
-			"(",
-			F"{input_file}",
-			")",
-			"--split",
-			F"timestamps:{timeCodes}",
-		]
-		# print(common.cmdStr(cmd))
-		print("Splitting tracks...")
-		common.run_process(cmd, silent=True)
-		assumed_files = {}
-		for x in range(1, len(ids) + 1):
-			_af = output_file.parent.joinpath(output_file.append_stem(F"-{x:03}").name)
-			if not _af.is_file():
-				raise Exception(F"Assumed split part:' {_af} does not exist. Good luck.")
-			assumed_files[ids[x-1]] = _af
-		return assumed_files
+		if viaFfmpeg: 
+			ffmpegTimeStamps = []
+			ffmpegStartTime = ""
+
+			parts = {}
+
+			for x in split_times:
+				if not len(ffmpegTimeStamps):
+					ffmpegStartTime = ""
+					ffmpegTimeStamps
+				ffmpegTimeStamps.append((x[0], ffmpegStartTime, x[1]))
+				ffmpegStartTime = x[1]
+
+			print(F"Splitting {input_file.name} into parts...")
+
+			output_file.parent.mkdir(exist_ok=True, parents=True)
+
+			for fts in ffmpegTimeStamps:
+				partId = fts[0]
+				cmd = [ "ffmpeg", "-y" ]				
+				cmd.append("-i")
+				cmd.append(F"{input_file}")
+				if fts[1] != "":
+					cmd.append("-ss")
+					cmd.append(fts[1])
+				
+				cmd.append("-to")
+				cmd.append(fts[2])
+
+				if not reEncode:
+					cmd.append('-c')
+					cmd.append('copy')
+				else:
+					cmd.append('-map')
+					cmd.append('0')
+					cmd.append('-g')
+					cmd.append('1')
+					cmd.append('-pix_fmt')
+					cmd.append('yuv420p')
+					cmd.append('-c:v')
+					cmd.append('h264_nvenc')
+					cmd.append('-c:a')
+					cmd.append('pcm_s16le')
+					cmd.append('-b:v')
+					cmd.append('2M')
+					cmd.append('-s')
+					cmd.append('1280x720')
+
+
+				_output_file = output_file.parent.joinpath(F"{output_file.stem}_{partId}{output_file.suffix}")
+				cmd.append(_output_file)
+				print(F"\rSplitting{' and re-encoding' if reEncode else ''} Part ID#{partId}...", end="")
+				common.run_process(cmd, silent=True)
+				print(F"\rSplitting{' and re-encoding' if reEncode else ''} Part ID#{partId}, DONE!", end="\n")
+
+				parts[fts[0]] = _output_file
+			return parts
+		else:
+			ids = [x[0] for x in split_times]
+			timeCodes = ",".join(x[1] for x in split_times)
+			# print(timeCodes)
+			cmd = [
+				"mkvmerge",
+				"--ui-language",
+				"en",
+				"--output",
+				F"{output_file}",
+				"(",
+				F"{input_file}",
+				")",
+				"--split",
+				F"timestamps:{timeCodes}",
+			]
+
+			print(F"Splitting {input_file} into parts...")
+
+			common.run_process(cmd, silent=True)
+			assumed_files = {}
+			for x in range(1, len(ids) + 1):
+				_af = output_file.parent.joinpath(output_file.append_stem(F"-{x:03}").name)
+				if not _af.is_file():
+					raise Exception(F"Assumed split part:' {_af} does not exist. Good luck.")
+				assumed_files[ids[x-1]] = _af
+			print(assumed_files)
+			return assumed_files
 
 	@staticmethod
 	def mkvJson(input_file: Path):

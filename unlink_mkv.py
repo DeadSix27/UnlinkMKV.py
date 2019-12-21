@@ -15,8 +15,13 @@ Very crude, may or may not work, no guarantees, good luck.
 
 class PyMergeMKVLinks():
 	def __init__(self, args):
-		self.sourceFolder: Path = args.sourceDir[0]
-		self.outputFolder: Path = args.destDir[0]
+		self.args = args
+
+		if self.args.re_encode:
+			self.args.via_ffmpeg = True
+
+		self.sourceFolder: Path = self.args.sourceDir[0]
+		self.outputFolder: Path = self.args.destDir[0]
 		self.outputFolder.mkdir(exist_ok=True)
 		self.sourceFiles = self.generateFileList()
 		if not len(self.sourceFiles):
@@ -37,14 +42,18 @@ class PyMergeMKVLinks():
 	def processFiles(self):
 		for i, (segmentUid, sourceFile) in enumerate(self.sourceFiles.items()):
 			sourceFile: Path
+			tmpOutDir = self.tmpDir.joinpath(str(i))
 			if segments := mkvstuff.getChapterDict(sourceFile):
 				if not len([x for x in segments.values() if x["segment_uid"]]):
 					self.plainCopy(sourceFile, self.outputFolder.joinpath(sourceFile.name))
 					continue
-				if segmentList := self.buildSegmentList(sourceFile, segments, self.tmpDir.joinpath(str(i))):
-					new_chapter = self.tmpDir.joinpath(str(i)).joinpath("new_chapter.xml")
-					with new_chapter.open('w', encoding='utf-8') as f:
-						 f.write(mkvstuff.segmentListToChapterFile(segmentList))
+				tmpOutDir.mkdir(parents=True, exist_ok=True)
+				if segmentList := self.buildSegmentList(sourceFile, segments, tmpOutDir):
+					new_chapter = None
+					if self.args.chapters:
+						new_chapter = tmpOutDir.joinpath("new_chapter.xml")
+						with new_chapter.open('w', encoding='utf-8') as f:
+							 f.write(mkvstuff.segmentListToChapterFile(segmentList))
 					self.buildMkvFromSegments(segmentList, self.outputFolder.joinpath(sourceFile.name), self.tmpDir.joinpath(str(i)), chapter=new_chapter)
 
 	def plainCopy(self, sourceFile: Path, destinationFile: Path):
@@ -102,14 +111,31 @@ class PyMergeMKVLinks():
 			'0',
 			'-i',
 			F'{concat_file}',
-			'-c',
-			'copy',
-			F'{output_file_tmp}',
 		]
+
+		if self.args.re_encode:
+			cmd.append('-map')
+			cmd.append('0')
+			cmd.append('-g')
+			cmd.append('1')
+			cmd.append('-pix_fmt')
+			cmd.append('yuv420p')
+			cmd.append('-c:v')
+			cmd.append('h264_nvenc')
+			cmd.append('-c:a')
+			cmd.append('pcm_s16le')
+			cmd.append('-b:v')
+			cmd.append('2M')
+			cmd.append('-s')
+			cmd.append('1280x720')
+		else:
+			cmd.append('-c')
+			cmd.append('copy')
+		cmd.append(F'{output_file_tmp}')
 
 		fonts_list = mkvstuff.build_font_list(font_dir)
 
-		print(F"Merging into: {output_file_tmp}")
+		print(F"Merging into{' (with re-encode)' if self.args.re_encode else ''}: {output_file_tmp}")
 		common.run_process(cmd, silent=True)
 		concat_file.unlink()
 
@@ -125,11 +151,16 @@ class PyMergeMKVLinks():
 			"(",
 			F"{output_file_tmp}",
 			")",
-			"--chapter-language",
-			"eng",
-			"--chapters",
-			F"{chapter}",
 		]
+		if chapter:
+			cmd.extend(
+				[
+					"--chapter-language",
+					"eng",
+					"--chapters",
+					F"{chapter}",
+				]
+			)
 		for font in fonts_list:
 			cmd.extend(
 				[
@@ -165,7 +196,12 @@ class PyMergeMKVLinks():
 					split_times.append((i, seg["time_end"]))
 			else:
 				if seg["segment_uid"] in self.sourceFiles:
-					segmentList[i]["file_path"] = self.sourceFiles[seg["segment_uid"]]
+					if self.args.re_encode:
+						print(F'Re-encoding {self.sourceFiles[seg["segment_uid"]]}')
+						segmentList[i]["file_path"] = mkvstuff.reEncodeFile(self.sourceFiles[seg["segment_uid"]], outputDirectory)
+					else:
+						segmentList[i]["file_path"] = self.sourceFiles[seg["segment_uid"]]
+
 
 		output_file: Path = None
 		if fullOutputDirectory:
@@ -173,7 +209,7 @@ class PyMergeMKVLinks():
 		else:
 			output_file = outputDirectory.joinpath(input_file.change_stem("parts").name)
 
-		split_files = mkvstuff.splitFilesByTimeCodes(input_file, split_times, output_file)
+		split_files = mkvstuff.splitFilesByTimeCodes(input_file, split_times, output_file, viaFfmpeg=self.args.via_ffmpeg, reEncode=self.args.re_encode)
 
 		print(F"Files are: {','.join(str(x) for x in split_files)}")
 
@@ -190,6 +226,10 @@ if __name__ == "__main__":
 	parser.set_defaults(which="main_p")
 	parser.add_argument("sourceDir", nargs="+", type=common.folderArgument)
 	parser.add_argument("destDir", nargs="*", type=common.folderArgument, default=(Path("./_output/"), ))
+	parser.add_argument("-c", "--with-chapters", action="store_true", dest="chapters", default=False)
+	parser.add_argument("-f", "--via-ffmpeg", action="store_true", dest="via_ffmpeg", default=False)
+	parser.add_argument("-r", "--re-encode", action="store_true", dest="re_encode", default=False)
+
 	args = parser.parse_args()
 	try:
 		PyMergeMKVLinks(args)
